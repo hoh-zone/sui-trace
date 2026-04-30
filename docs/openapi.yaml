@@ -1,0 +1,552 @@
+openapi: 3.1.0
+info:
+  title: Sui-Trace API
+  version: 0.1.0
+  description: |
+    REST surface for the Sui-Trace developer-first explorer.
+    A GraphQL endpoint with the equivalent surface is available at `/graphql`,
+    and a real-time WebSocket stream at `/ws`.
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Health probe
+      responses:
+        "200": { description: ok }
+  /api/v1/tx/latest:
+    get:
+      summary: Most recent transactions
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 25, maximum: 200 }
+      responses:
+        "200": { description: list of transactions }
+  /api/v1/tx/{digest}:
+    get:
+      summary: Single transaction with events
+      parameters:
+        - in: path
+          name: digest
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: transaction + events }
+        "404": { description: not found }
+  /api/v1/tx/{digest}/full:
+    get:
+      summary: Rich SuiVision-style detail (PTB, gas, objects, balance, signatures)
+      description: |
+        Combines the indexed `transactions` row, the live `sui_getTransactionBlock`
+        payload (with `showInput=showRawInput=showEffects=showEvents=showBalanceChanges=showObjectChanges=true`),
+        address labels for every owner appearing in balance/object changes, and
+        security report summaries for any package referenced by a `MoveCall`.
+
+        The RPC payload is cached in Redis for 1h because finalized Sui
+        transactions are immutable.
+      parameters:
+        - in: path
+          name: digest
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: |
+            Combined payload — `{ digest, indexed, events, rpc, labels, packages }`.
+            `indexed` may be null if the transaction isn't indexed yet (RPC-only).
+            `rpc` may be null if the fullnode call failed (offline / pruned).
+  /api/v1/address/{addr}:
+    get:
+      summary: Address summary with labels
+      parameters:
+        - in: path
+          name: addr
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: address detail }
+  /api/v1/package/{id}:
+    get:
+      summary: Package detail with modules and security report
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: package detail }
+        "404": { description: not found }
+  /api/v1/package/{id}/security:
+    get:
+      summary: Latest security report for a package
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: security report }
+        "404": { description: no report yet }
+  /api/v1/checkpoint/latest:
+    get:
+      summary: Latest indexed checkpoint
+      responses:
+        "200": { description: checkpoint or null }
+  /api/v1/checkpoint/recent:
+    get:
+      summary: Recent checkpoints (newest first)
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 25, maximum: 200 }
+      responses:
+        "200": { description: list of checkpoints }
+  /api/v1/checkpoint/{seq}:
+    get:
+      summary: Checkpoint by sequence number
+      parameters:
+        - in: path
+          name: seq
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: checkpoint }
+        "404": { description: not found }
+  /api/v1/checkpoint/{seq}/transactions:
+    get:
+      summary: Transactions belonging to a checkpoint
+      parameters:
+        - in: path
+          name: seq
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        "200": { description: list of transactions }
+  /api/v1/package/recent:
+    get:
+      summary: Recently published packages
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 25, maximum: 200 }
+      responses:
+        "200": { description: list of packages }
+  /api/v1/package/{id}/events:
+    get:
+      summary: Recent events emitted by a package
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 500 }
+      responses:
+        "200": { description: list of events }
+  /api/v1/package/{id}/versions:
+    get:
+      summary: Package upgrade lineage (publish + every upgrade)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: ordered list of versions }
+  /api/v1/package/{id}/source:
+    get:
+      summary: List decompiled / disassembled module sources for a package
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: per-module summaries (no body) }
+    post:
+      summary: Push a decompiled module source (external decompiler ingestion)
+      description: |
+        Authenticated via either a Bearer JWT with role=admin|indexer or the
+        configured ingestion shared secret in `X-Trace-Ingest-Key`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      security:
+        - bearerAuth: []
+        - ingestKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [module_name, source]
+              properties:
+                module_name: { type: string }
+                format:
+                  type: string
+                  enum: [move-disasm, move-source, pseudo]
+                  default: move-disasm
+                source: { type: string }
+                decompiler: { type: string, default: unknown }
+                decompiler_version: { type: string, nullable: true }
+                bytecode_hash: { type: string, nullable: true }
+      responses:
+        "200": { description: stored }
+        "400": { description: empty module_name or source }
+        "401": { description: missing credential }
+        "403": { description: role not allowed }
+  /api/v1/package/{id}/source/{module}:
+    get:
+      summary: Get a single module's source body
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: path
+          name: module
+          required: true
+          schema: { type: string }
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [move-disasm, move-source, pseudo]
+      responses:
+        "200": { description: source body + metadata }
+        "404": { description: not stored yet }
+  /api/v1/address/{addr}/events:
+    get:
+      summary: Recent events emitted by an address (as sender)
+      parameters:
+        - in: path
+          name: addr
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200": { description: list of events }
+  /api/v1/watch/dashboard:
+    get:
+      summary: Watched-protocols dashboard (totals + per-protocol cards)
+      responses:
+        "200": { description: dashboard payload }
+  /api/v1/watch/protocols:
+    get:
+      summary: List protocols (curated registry)
+      parameters:
+        - in: query
+          name: watched
+          schema: { type: boolean }
+      responses:
+        "200": { description: list of protocols }
+    post:
+      summary: Add or upsert a protocol (operator-only)
+      security:
+        - bearerAuth: []
+        - ingestKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, name]
+              properties:
+                id: { type: string }
+                name: { type: string }
+                package_ids:
+                  type: array
+                  items: { type: string }
+                category: { type: string, default: other }
+                website: { type: string, nullable: true }
+                defillama_slug: { type: string, nullable: true }
+                watched: { type: boolean, default: true }
+                priority: { type: integer, default: 0 }
+                risk_level:
+                  type: string
+                  enum: [low, medium, high, critical, unknown]
+                description: { type: string, nullable: true }
+                logo_url: { type: string, nullable: true }
+                tags: { type: array, items: { type: string } }
+                treasury_addresses: { type: array, items: { type: string } }
+                multisig_addresses: { type: array, items: { type: string } }
+                contact: { type: string, nullable: true }
+                notes: { type: string, nullable: true }
+                added_by: { type: string, nullable: true }
+      responses:
+        "200": { description: stored protocol }
+        "400": { description: invalid id/name }
+  /api/v1/watch/protocols/{id}:
+    get:
+      summary: Protocol detail (TVL + code events + activity)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: detail payload }
+        "404": { description: not found }
+    put:
+      summary: Update a protocol (partial)
+      security:
+        - bearerAuth: []
+        - ingestKey: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object } } }
+      responses:
+        "200": { description: updated protocol }
+        "404": { description: not found }
+    delete:
+      summary: Remove a protocol (also drops `protocol_code_events`)
+      security:
+        - bearerAuth: []
+        - ingestKey: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: removed }
+        "404": { description: not found }
+  /api/v1/watch/feed/code:
+    get:
+      summary: Cross-protocol code-update feed
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100, maximum: 500 }
+        - in: query
+          name: id
+          description: Optional protocol filter
+          schema: { type: string }
+      responses:
+        "200": { description: list of code events }
+  /api/v1/watch/feed/activity:
+    get:
+      summary: Recent on-chain events for a watched protocol's package set
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100, maximum: 500 }
+      responses:
+        "200": { description: list of activity events }
+        "400": { description: missing id }
+        "404": { description: protocol not found }
+  /api/v1/network/overview:
+    get:
+      summary: Network overview (latest checkpoint + 24h counters)
+      responses:
+        "200": { description: overview }
+  /api/v1/protocols:
+    get:
+      summary: Registered protocols (powers TVL pickers)
+      responses:
+        "200": { description: protocols }
+  /api/v1/security/recent:
+    get:
+      summary: Latest security findings across all packages
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200": { description: findings feed }
+  /api/v1/security/scoreboard:
+    get:
+      summary: Severity counts and most-triggered rules
+      parameters:
+        - in: query
+          name: days
+          schema: { type: integer, default: 30, maximum: 365 }
+      responses:
+        "200": { description: scoreboard }
+  /api/v1/stats/throughput:
+    get:
+      summary: Per-minute transaction throughput
+      parameters:
+        - in: query
+          name: minutes
+          schema: { type: integer, default: 60, minimum: 5 }
+      responses:
+        "200": { description: throughput points }
+  /api/v1/alerts/feed:
+    get:
+      summary: Public alert event feed (no auth required)
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200": { description: alerts }
+  /api/v1/search:
+    get:
+      summary: Universal search (digest / address / package / label)
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: search result }
+  /api/v1/labels/{addr}:
+    get:
+      summary: Labels attached to an address
+      parameters:
+        - in: path
+          name: addr
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: labels }
+  /api/v1/labels:
+    post:
+      summary: Submit a community label (requires Bearer token)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address, label, category]
+              properties:
+                address: { type: string }
+                label: { type: string }
+                category: { type: string }
+                evidence_url: { type: string, nullable: true }
+      responses:
+        "200": { description: created }
+        "401": { description: unauthorized }
+  /api/v1/stats/deployments:
+    get:
+      summary: Daily deployment counts
+      parameters:
+        - in: query
+          name: days
+          schema: { type: integer, default: 30, minimum: 1, maximum: 365 }
+      responses:
+        "200": { description: stats }
+  /api/v1/stats/active:
+    get:
+      summary: Most active packages
+      parameters:
+        - in: query
+          name: hours
+          schema: { type: integer, default: 24 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200": { description: ranking }
+  /api/v1/stats/tvl/{protocol}:
+    get:
+      summary: TVL history for a protocol
+      parameters:
+        - in: path
+          name: protocol
+          required: true
+          schema: { type: string }
+        - in: query
+          name: hours
+          schema: { type: integer, default: 24 }
+      responses:
+        "200": { description: history }
+  /api/v1/auth/siws:
+    post:
+      summary: Sign-In With Sui — exchange a signed message for a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address, message, signature]
+              properties:
+                address: { type: string }
+                message: { type: string }
+                signature: { type: string }
+      responses:
+        "200": { description: token + user }
+        "401": { description: invalid signature }
+  /api/v1/watchlists:
+    get:
+      summary: List the caller's watchlists
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: watchlists }
+    post:
+      summary: Create a watchlist
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, target_type, target_id]
+              properties:
+                name: { type: string }
+                target_type: { type: string, enum: [address, package, protocol] }
+                target_id: { type: string }
+                rules: { type: object }
+                channels: { type: array }
+      responses:
+        "200": { description: created }
+  /api/v1/watchlists/{id}:
+    delete:
+      summary: Delete a watchlist
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: deleted }
+  /api/v1/alerts/recent:
+    get:
+      summary: Recent alerts for the caller
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200": { description: alerts }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ingestKey:
+      type: apiKey
+      in: header
+      name: X-Trace-Ingest-Key
+      description: Shared secret for headless ingestion endpoints (decompiler, etc.).

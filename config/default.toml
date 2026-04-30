@@ -1,0 +1,55 @@
+[app]
+name = "sui-trace"
+env = "dev"
+
+[database]
+url = "postgres://trace:trace@localhost:5432/sui_trace"
+max_connections = 20
+min_connections = 2
+connect_timeout_secs = 10
+
+[redis]
+url = "redis://localhost:6379"
+pool_size = 16
+
+[sui]
+grpc_url = "https://fullnode.mainnet.sui.io:443"
+rest_url = "https://fullnode.mainnet.sui.io"
+network = "mainnet"
+start_checkpoint = 0
+
+[api]
+bind = "0.0.0.0:8080"
+cors_origins = ["http://localhost:5173"]
+
+[auth]
+jwt_secret = "replace-me-in-production-with-32-bytes"
+jwt_ttl_secs = 3600
+# Shared secret for the external decompiler / ingestion tooling. When set,
+# requests with header `X-Trace-Ingest-Key: <value>` may push data into
+# `package_module_sources` without a JWT. Leave blank to disable.
+ingest_api_key = ""
+
+[clickhouse]
+url = "http://localhost:8123"
+database = "sui_trace"
+
+[s3]
+endpoint = "http://localhost:9100"
+bucket = "sui-trace"
+access_key = "minioadmin"
+secret_key = "minioadmin"
+region = "us-east-1"
+
+[defillama]
+base = "https://api.llama.fi"
+poll_interval_secs = 300
+
+[alert]
+dedupe_window_secs = 300
+max_retries = 3
+
+[indexer]
+concurrent_pipelines = ["events", "balance_changes", "transactions"]
+sequential_pipelines = ["packages", "checkpoints"]
+batch_size = 200

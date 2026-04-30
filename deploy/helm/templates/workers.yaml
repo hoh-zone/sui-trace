@@ -1,0 +1,45 @@
+{{- range $component := list "indexer" "security" "analytics" "alert" }}
+{{- $values := index $.Values $component }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sui-trace.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "sui-trace.commonLabels" $ | nindent 4 }}
+    component: {{ $component }}
+spec:
+  replicas: {{ $values.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "sui-trace.fullname" $ }}
+      component: {{ $component }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "sui-trace.fullname" $ }}
+        component: {{ $component }}
+    spec:
+      containers:
+        - name: {{ $component }}
+          image: "{{ $.Values.image.repository }}/trace-indexer:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: ["trace-{{ $component }}"]
+          env:
+            - name: TRACE__database__url
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sui-trace.fullname" $ }}-secrets
+                  key: databaseUrl
+            - name: TRACE__redis__url
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sui-trace.fullname" $ }}-secrets
+                  key: redisUrl
+            {{- range $k, $v := $.Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml $values.resources | nindent 12 }}
+---
+{{- end }}

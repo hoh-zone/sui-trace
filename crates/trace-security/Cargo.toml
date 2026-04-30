@@ -1,0 +1,28 @@
+[package]
+name = "trace-security"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+trace-common.workspace = true
+trace-storage.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+hex.workspace = true
+sha2.workspace = true
+regex.workspace = true
+once_cell.workspace = true
+redis.workspace = true
+reqwest.workspace = true
+
+[[bin]]
+name = "trace-security"
+path = "src/bin/security.rs"
+

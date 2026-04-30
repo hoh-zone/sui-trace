@@ -1,0 +1,24 @@
+[package]
+name = "trace-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+trace-common.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+sqlx.workspace = true
+redis.workspace = true
+deadpool-redis.workspace = true
+bigdecimal.workspace = true
+hex.workspace = true
+sha2.workspace = true

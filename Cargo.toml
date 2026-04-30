@@ -1,0 +1,117 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/trace-common",
+    "crates/trace-storage",
+    "crates/trace-indexer",
+    "crates/trace-security",
+    "crates/trace-analytics",
+    "crates/trace-alert",
+    "crates/trace-labels",
+    "crates/trace-api",
+    "crates/trace-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "Apache-2.0"
+repository = "https://github.com/sui-trace/sui-trace"
+
+[workspace.dependencies]
+# async runtime
+tokio = { version = "1.42", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# error / utility
+anyhow = "1"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+bytes = "1"
+hex = "0.4"
+base64 = "0.22"
+
+# serde / config
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_with = "3"
+toml = "0.8"
+config = { version = "0.14", default-features = false, features = ["toml"] }
+dotenvy = "0.15"
+
+# logging / tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.28"
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+
+# database
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "macros",
+    "chrono",
+    "uuid",
+    "json",
+    "bigdecimal",
+    "migrate",
+] }
+bigdecimal = { version = "0.4", features = ["serde"] }
+
+# cache / queue
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+deadpool-redis = "0.18"
+
+# http / api
+axum = { version = "0.8", features = ["ws", "macros"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip", "limit"] }
+hyper = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+
+# graphql
+async-graphql = { version = "7", features = ["chrono", "uuid"] }
+async-graphql-axum = "7"
+
+# crypto / auth
+jsonwebtoken = "9"
+sha2 = "0.10"
+hmac = "0.12"
+rand = "0.8"
+argon2 = "0.5"
+
+# cli
+clap = { version = "4", features = ["derive", "env"] }
+
+# concurrency
+parking_lot = "0.12"
+dashmap = "6"
+
+# regex / text
+regex = "1"
+once_cell = "1"
+
+# internal
+trace-common = { path = "crates/trace-common" }
+trace-storage = { path = "crates/trace-storage" }
+trace-indexer = { path = "crates/trace-indexer" }
+trace-security = { path = "crates/trace-security" }
+trace-analytics = { path = "crates/trace-analytics" }
+trace-alert = { path = "crates/trace-alert" }
+trace-labels = { path = "crates/trace-labels" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+opt-level = 3
+strip = "symbols"
+
+[profile.dev]
+opt-level = 0
+debug = 1

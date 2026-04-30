@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sui-trace
+description: Sui-Trace developer-first explorer for the Sui blockchain
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

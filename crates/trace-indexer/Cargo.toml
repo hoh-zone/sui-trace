@@ -1,0 +1,34 @@
+[package]
+name = "trace-indexer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+trace-common.workspace = true
+trace-storage.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+reqwest.workspace = true
+futures.workspace = true
+hex.workspace = true
+sha2.workspace = true
+bigdecimal.workspace = true
+sqlx.workspace = true
+redis.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "trace-indexer"
+path = "src/bin/indexer.rs"
+

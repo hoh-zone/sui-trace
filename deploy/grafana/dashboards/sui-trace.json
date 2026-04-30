@@ -1,0 +1,60 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "schemaVersion": 39,
+  "title": "Sui-Trace Overview",
+  "uid": "sui-trace-overview",
+  "tags": ["sui", "indexer"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "API requests per second",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "sum(rate(http_requests_total{job=\"trace-api\"}[1m]))" }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "id": 2,
+      "title": "Indexer checkpoint lag",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "max(sui_trace_indexer_lag_checkpoints)" }
+      ],
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "id": 3,
+      "title": "Pending alert deliveries",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "sui_trace_alert_pending_total" }
+      ],
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "id": 4,
+      "title": "New high-severity packages / hour",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "sum(rate(sui_trace_security_findings_total{severity=\"high\"}[1h])) + sum(rate(sui_trace_security_findings_total{severity=\"critical\"}[1h]))" }
+      ],
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+    },
+    {
+      "id": 5,
+      "title": "Watchlist alerts (24h)",
+      "type": "barchart",
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "sum by (rule_id) (increase(sui_trace_alerts_fired_total[24h]))" }
+      ],
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+    }
+  ]
+}

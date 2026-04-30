@@ -1,0 +1,81 @@
+image:
+  repository: ghcr.io/sui-trace
+  tag: latest
+  pullPolicy: IfNotPresent
+
+api:
+  replicas: 2
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits:   { cpu: 1000m, memory: 1Gi }
+
+indexer:
+  replicas: 1
+  resources:
+    requests: { cpu: 500m, memory: 512Mi }
+    limits:   { cpu: 2000m, memory: 2Gi }
+
+security:
+  replicas: 1
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits:   { cpu: 1000m, memory: 1Gi }
+
+analytics:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+alert:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+web:
+  replicas: 2
+  service:
+    type: ClusterIP
+    port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: sui-trace.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+        - path: /api
+          pathType: Prefix
+          service: api
+        - path: /graphql
+          pathType: Prefix
+          service: api
+        - path: /ws
+          pathType: Prefix
+          service: api
+
+env:
+  TRACE_CONFIG: /app/config/default.toml
+  RUST_LOG: info,trace_indexer=debug
+
+externalSecrets:
+  databaseUrl: ""
+  redisUrl: ""
+  jwtSecret: ""
+  telegramBotToken: ""
+  resendApiKey: ""
+
+postgres:
+  enabled: false  # use external managed Postgres in production
+  image: timescale/timescaledb:latest-pg17
+
+redis:
+  enabled: true
+  image: redis:7.4-alpine
